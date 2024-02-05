@@ -1,0 +1,94 @@
+captainVersion: 4
+services:
+    $$cap_appname-db:
+        image: postgres:$$cap_postgres_version
+        volumes:
+            - $$cap_appname-db-data:/var/lib/postgresql/data
+        restart: always
+        environment:
+            POSTGRES_USER: keycloak
+            POSTGRES_PASSWORD: $$cap_pg_pass
+            POSTGRES_DB: keycloak
+        caproverExtra:
+            notExposeAsWebApp: "true"
+
+    $$cap_appname:
+        depends_on:
+            - $$cap_appname-db
+        restart: always
+        environment:
+            KEYCLOAK_PRODUCTION: true
+            KEYCLOAK_ENABLE_HTTPS: false
+            KEYCLOAK_ENABLE_TLS: false
+            KEYCLOAK_PROXY: edge
+            KEYCLOAK_ADMIN: $$cap_keycloak_admin
+            KEYCLOAK_ADMIN_PASSWORD: $$cap_keycloak_password
+            KEYCLOAK_DATABASE_HOST: srv-captain--$$cap_appname-db
+            KEYCLOAK_DATABASE_USER: keycloak
+            KEYCLOAK_DATABASE_NAME: keycloak
+            KEYCLOAK_DATABASE_PASSWORD: $$cap_pg_pass
+        caproverExtra:
+            dockerfileLines:
+                 - FROM bitnami/keycloak:$$cap_keycloak_version
+                 - USER root
+                 - RUN openssl s_client -showcerts -connect $$cap_outgoing_email_domain:465 </dev/null | sed -n -e '/-.BEGIN/,/-.END/ p' > /tmp/outgoing-mail-domain.pem
+                 - RUN keytool -import -alias outgoing-mail-domain -keystore $JAVA_HOME/lib/security/cacerts -file /tmp/outgoing-mail-domain.pem -storepass changeit -noprompt
+                 - USER 1001
+
+caproverOneClickApp:
+    variables:
+        - id: $$cap_postgres_version
+          label: Postgres Version
+          defaultValue: "15"
+          description: Check out Keycloak DB page for any valid major tested https://www.keycloak.org/server/db
+          validRegex: /^([^\s^\/])+$/
+        - id: $$cap_keycloak_version
+          label: Keycloak Version
+          defaultValue: "23.0.5"
+          description: v23.0.5 current as of 2024-02-04. This can change rapidly so check docs for most recent. Check out Keycloak Docker page for the valid tags https://hub.docker.com/r/bitnami/keycloak/tags
+          validRegex: /^([^\s^\/])+$/
+        - id: $$cap_pg_pass
+          label: Postgres Password
+          description: "App-to-app database credential.  12-20 characters."
+          defaultValue: $$cap_gen_random_hex(20)
+          validRegex: /.{12,20}/
+        - id: $$cap_keycloak_admin
+          label: Keycloak admin user
+          description: "Login username for the admin web user."
+          defaultValue: "admin"
+          validRegex: /.{1,}/
+        - id: $$cap_keycloak_password
+          label: Keycloak admin password
+          description: "Login password for the admin web user.  12-20 characters."
+          defaultValue: $$cap_gen_random_hex(20)
+          validRegex: /.{12,20}/
+        - id: $$cap_outgoing_email_domain
+          label: Outgoing email domain 
+          description: "Outgoing email domain."
+          defaultValue: mail.my-domain.com
+    instructions:
+        start: >-
+            Keycloak is an Open Source Identity and Access Management solution for modern Applications and Services. It makes it easy to secure applications and services with little to no code.
+
+            For documentation, see: https://www.keycloak.org/documentation.html
+
+            For source code, see: https://github.com/keycloak/keycloak
+
+            For docker image, see: https://quay.io/repository/keycloak/keycloak
+
+            Enter your Keycloak Configuration parameters and click on next.
+        end: >
+            Keycloak is deployed and available as $$cap_appname. 
+
+            Before starting using Keycloak, you'll need to
+
+            - Enable HTTPS
+
+            - Force HTTPS by redirecting all HTTP traffic to HTTPS
+
+
+            IMPORTANT: It will take up to 1 minutes for Keycloak to be ready. Before that, you might see 502 error page.
+    displayName: "Keycloak"
+    isOfficial: false
+    description: Keycloak is an open source identity and access management solution
+    documentation: Taken from https://github.com/keycloak/keycloak-containers/blob/main/docker-compose-examples/keycloak-postgres.yml
